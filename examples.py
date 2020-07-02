@@ -13,12 +13,12 @@ def example():
     class Figure1(FigureSpec):
         size = ElemSize(7.5, 9.0, units)
         svg_path = Path(tempfile.gettempdir()) / "figure_1.svg"
-        plot_grid_every = 2.5
+        plot_grid_every = 1
         generate_image = ImageType.tiff
 
         class Subplots(NamedTuple):
             schematic: Subplot \
-                = Subplot(sc.SVG(f"{get_schematic_path()}").scale(3/4),
+                = Subplot(sc.SVG(f"{get_schematic_path()}").scale(1.),
                           Location(0.5, 1),
                           auto_label=True,
                           text=Text("This is a schematic", 0, 4.5, size=10, weight="bold", font="serif"),)
@@ -64,11 +64,12 @@ def subplot_time_series(sp_fig: SubplotFig):
 
 
 def get_schematic_path() -> Path:
-    fig: plt.Figure = plt.figure(figsize=(2., 2.))
-    ax: plt.Axes = fig.add_subplot(1, 1, 1, projection='polar')
-    ax.plot(np.arange(20))
-    schematic_file = Path(tempfile.gettempdir()) / 'schematic.svg'
-    fig.savefig(schematic_file)
+    # fig: plt.Figure = plt.figure(figsize=(1.5, 1.5))
+    # ax: plt.Axes = fig.add_subplot(1, 1, 1, projection='polar')
+    # ax.plot(np.arange(20))
+    # schematic_file = Path(tempfile.gettempdir()) / 'schematic.svg'
+    # fig.savefig(schematic_file)
+    schematic_file = Path("./schematic.svg")
     return schematic_file
 
 

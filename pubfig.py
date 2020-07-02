@@ -100,6 +100,7 @@ class FigureSpec(SimpleNamespace):
     subplots: Subplots
     plot_grid_every: Union[float, int] = 0
     generate_image: ImageType = ImageType.none
+    image_dpi: int = 400
     auto_label_options: AutoLabelOptions = AutoLabelOptions()
 
 
@@ -194,7 +195,7 @@ def composite(figure: FigureSpec, delete_png=False):
         """
         basename = f"{figure.svg_path}".rstrip(".svg")
         image_name = f"{basename}.png"
-        run(f"inkscape --without-gui --export-png='{image_name}' --export-dpi 400 {figure.svg_path}")
+        run(f"inkscape --without-gui --export-png='{image_name}' --export-dpi {figure.image_dpi} {figure.svg_path}")
         if figure.generate_image == ImageType.tiff:
             tiff_name = f"{basename}.tiff"
             run(f"convert -compress LZW -alpha remove {image_name} {tiff_name}")
