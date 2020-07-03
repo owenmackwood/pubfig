@@ -8,12 +8,13 @@ from matplotlib.gridspec import GridSpec
 
 plt_ppi = 72  # Matplotlib defines 1 pt to be 1/72 of an inch
 cm_per_inch = 2.54
-
+scaling_magic = 4/3
 
 class Units(Enum):
     inch = 1
     cm = 2
-    pt = 3
+    mm = 3
+    pt = 4
 
 
 class ElemSize(NamedTuple):
@@ -42,20 +43,68 @@ class Text:
         self.kwargs: Dict[str, Any] = kwargs
 
 
+class SVG:
+    def __init__(self, file: Path):
+        """
+        Attempts to compute the correct scale factor for the SVG file.
+        Currently only works for some cases, but it remains unclear why it fails when it does.
+        :param file: Path to an SVG file to be inserted in the figure.
+        """
+        from svgutils.transform import fromfile
+        self.file = file
+        svg = fromfile(f"{file!s}")
+        width, w_unit = self.get_width_height(svg, "width")
+        height, h_unit = self.get_width_height(svg, "height")
+        assert w_unit == h_unit, "Units of SVG drawing dimensions must match!"
+        x0, y0, x1, y1 = self.get_view_box(svg)
+        h_user, w_user = y1 - y0, x1 - x0
+        pts_per_unit = h_user / height
+        assert abs(pts_per_unit - w_user / width) < 1e-2, "Vertical scale is different than horizontal in SVG"
+        self.scale = get_pts_per_unit(w_unit) / pts_per_unit
+        self.svg = sc.SVG()
+        self.svg.root = svg.getroot().root
+
+    @staticmethod
+    def get_width_height(svg, name) -> Tuple[float, Units]:
+        dim: str = svg.root.get(name)
+        for unit in ("cm", "in", "mm", "pt", ""):
+            if unit in dim:
+                val = dim.rstrip(unit)
+                return float(val), SVG.to_unit(unit)
+
+    @staticmethod
+    def get_view_box(svg):
+        vb = svg.root.get("viewBox")
+        return (float(xy) for xy in vb.split(" "))
+
+    @staticmethod
+    def to_unit(unit: str) -> Units:
+        if unit == "in":
+            return Units.inch
+        elif unit == "cm":
+            return Units.cm
+        elif unit == "mm":
+            return Units.mm
+        else:
+            return Units.pt
+
+
 class Subplot:
     def __init__(
             self,
-            figure: Union[plt.Figure, sc.SVG],
+            figure: Union[plt.Figure, SVG],
             location: Location,
             text: Optional[Union[Text, Tuple[Text, ...]]] = None,
             auto_label: bool = True,
             label_location: Location = Location(0, 0),
+            scale: Optional[float] = None,
     ):
-        self.figure: Union[plt.Figure, sc.SVG] = figure
+        self.figure: Union[plt.Figure, SVG] = figure
         self.location: Location = location
         self.text: Optional[Tuple[Text, ...]] = text if isinstance(text, tuple) or text is None else (text,)
         self.auto_label: bool = auto_label
         self.label_location: Location = label_location
+        self.scale: float = scale
 
 
 class SubplotFig(Subplot):
@@ -123,7 +172,7 @@ def composite(figure: FigureSpec, delete_png=False):
 
         panel_elements = []
 
-        assert isinstance(subplot.figure, (plt.Figure, sc.SVG))
+        assert isinstance(subplot.figure, (plt.Figure, SVG))
 
         if isinstance(subplot.figure, plt.Figure):
             fn = tempdir / f"{name}.svg"
@@ -144,10 +193,16 @@ def composite(figure: FigureSpec, delete_png=False):
             One thing to try might be to specify figures in pts, based on the default DPI
             used by matplotlib, or alter the default DPI to bring 1 pt == 1 px
             """
-            svg = sc.SVG(fn).scale(4/3)
+            svg = sc.SVG(fn)
+            if subplot.scale is None:
+                svg.scale(scaling_magic)  # Default scaling as per block comment above
+            else:  # Custom scaling per user request
+                svg.scale(subplot.scale)
             panel_elements.append(svg)
         else:
-            panel_elements.append(subplot.figure)
+            scale = subplot.scale or subplot.figure.scale
+            print(f"Scaling SVG {subplot.figure.file} by {scale}")
+            panel_elements.append(subplot.figure.svg.scale(scale))
 
         if subplot.text is not None:
             panel_elements += [
@@ -211,9 +266,11 @@ def get_pts_per_unit(units: Units) -> Union[float, int]:
         pts_per_unit = plt_ppi
     elif units == Units.cm:
         pts_per_unit = plt_ppi / cm_per_inch
+    elif units == Units.mm:
+        pts_per_unit = plt_ppi / cm_per_inch / 10
     else:
         pts_per_unit = 1
-    return pts_per_unit
+    return scaling_magic * pts_per_unit
 
 
 def figure_size_in_inches(fig_size: ElemSize) -> Tuple[float, ...]:
@@ -222,6 +279,8 @@ def figure_size_in_inches(fig_size: ElemSize) -> Tuple[float, ...]:
         return tuple(wh / plt_ppi for wh in (fig_size.width, fig_size.height))
     elif fig_size.units == Units.cm:
         return tuple(wh / cm_per_inch for wh in (fig_size.width, fig_size.height))
+    elif fig_size.units == Units.mm:
+        return tuple(wh / cm_per_inch * 10 for wh in (fig_size.width, fig_size.height))
     else:
         return tuple(wh for wh in (fig_size.width, fig_size.height))
 
@@ -230,6 +289,20 @@ def location_to_str(default_units: Units, loc: Location) -> Tuple[str, ...]:
     units = loc.units or default_units
     pts_per_unit = get_pts_per_unit(units)
     return tuple(f"{xy*pts_per_unit}" for xy in (loc.x, loc.y))
+
+
+def check_svg_scale(svg: sc.SVG):
+    """
+    :param svg:
+    :param target_scale:
+    :return:
+    """
+    import re
+
+    xform: str = svg.root.get("transform")
+    print(f"Units:{svg.root.get('units')} WH: {svg.root.get('width')} {svg.root.get('height')} XFORM: {xform}")
+    g = re.match(r".+?scale\(([-+]?\d*\.\d+|\d+)\)", xform or "")
+    return float(g.group(1) if g else 1)
 
 
 def run(command, check=True, shell=True):

@@ -1,10 +1,7 @@
-import numpy as np
 import tempfile
-import matplotlib.pyplot as plt
-import svgutils.compose as sc
 from pathlib import Path
 from typing import NamedTuple
-from pubfig import FigureSpec, ElemSize, Units, ImageType, Location, Subplot, SubplotFig, Text
+from pubfig import FigureSpec, ElemSize, Units, ImageType, Location, SVG, Subplot, SubplotFig, Text
 from pubfig import composite, spines_frames
 
 
@@ -13,25 +10,28 @@ def example():
     class Figure1(FigureSpec):
         size = ElemSize(7.5, 9.0, units)
         svg_path = Path(tempfile.gettempdir()) / "figure_1.svg"
-        plot_grid_every = 1
+        plot_grid_every = 0
         generate_image = ImageType.tiff
+        image_dpi = 300
 
         class Subplots(NamedTuple):
             schematic: Subplot \
-                = Subplot(sc.SVG(f"{get_schematic_path()}").scale(1.),
-                          Location(0.5, 1),
+                = Subplot(SVG(get_schematic_path()),
+                          Location(.75, 1),
                           auto_label=True,
-                          text=Text("This is a schematic", 0, 4.5, size=10, weight="bold", font="serif"),)
+                          label_location=Location(-.5, -.5),
+                          text=Text("This is a schematic", -.3, -.3, size=10, weight="bold", font="serif"),)
 
             noise_image: SubplotFig \
                 = SubplotFig(ElemSize(3.0, 3.0, units),
-                             Location(5.0, 1),
+                             Location(4.25, 1),
+                             label_location=Location(0, -.5),
                              gridspec_kwargs=dict(bottom=0, left=0, top=1, right=1))
 
             time_series: SubplotFig \
                 = SubplotFig(ElemSize(6.0, 4.0, units),
-                             Location(1, 6),
-                             label_location=Location(0, .5),
+                             Location(.75, 4.5),
+                             label_location=Location(-.5, 0),
                              gridspec_kwargs=dict(nrows=2, ncols=2, wspace=1., hspace=1))
 
         subplots = Subplots()
@@ -64,12 +64,10 @@ def subplot_time_series(sp_fig: SubplotFig):
 
 
 def get_schematic_path() -> Path:
-    # fig: plt.Figure = plt.figure(figsize=(1.5, 1.5))
-    # ax: plt.Axes = fig.add_subplot(1, 1, 1, projection='polar')
-    # ax.plot(np.arange(20))
-    # schematic_file = Path(tempfile.gettempdir()) / 'schematic.svg'
-    # fig.savefig(schematic_file)
     schematic_file = Path("./schematic.svg")
+    # schematic_file = Path("./empty_mm_mm1.svg")
+    # schematic_file = Path("./empty_in_mm254.svg")
+    # schematic_file = Path("./empty_mm_in.svg")
     return schematic_file
 
 
