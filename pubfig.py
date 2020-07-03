@@ -1,6 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NamedTuple, Tuple, Union, Dict, Any, Optional
+from typing import NamedTuple, Tuple, Union, Dict, Any, Optional, Callable, Type, TypeVar
 from enum import Enum
 import matplotlib.pyplot as plt
 import svgutils.compose as sc
@@ -99,7 +99,7 @@ class Subplot:
             figure_offset: Location = Location(0, 0),
             scale: Optional[float] = None,
     ):
-        self.figure: Union[plt.Figure, SVG] = figure
+        self.fig: Union[plt.Figure, SVG] = figure
         self.location: Location = location
         self.text: Optional[Tuple[Text, ...]] = text if isinstance(text, tuple) or text is None else (text,)
         self.auto_label: bool = auto_label
@@ -145,12 +145,27 @@ class FigureSpec(SimpleNamespace):
         subplot: Union[Subplot, SubplotFig]
 
     svg_path: Union[Path, str]
-    size: ElemSize
+    figure_size: ElemSize
     subplots: Subplots
     plot_grid_every: Union[float, int] = 0
     generate_image: ImageType = ImageType.none
     image_dpi: int = 400
     auto_label_options: AutoLabelOptions = AutoLabelOptions()
+
+
+UserFigureSpec = TypeVar("UserFigureSpec")
+
+
+def compositor(figure_spec: Type[UserFigureSpec], delete_png: bool=False):
+    assert issubclass(figure_spec, FigureSpec), "The compositor needs the figure type: `@compositor(FigureSpec)`"
+    def compositor_decorator(fn: Callable[..., Any]):
+        def wrapped_fn(*args, **kwargs):
+            fig_spec = figure_spec()
+            result = fn(fig_spec, *args, **kwargs)
+            composite(fig_spec, delete_png)
+            return result
+        return wrapped_fn
+    return compositor_decorator
 
 
 def composite(figure: FigureSpec, delete_png=False):
@@ -159,7 +174,7 @@ def composite(figure: FigureSpec, delete_png=False):
     tempdir = Path(tempfile.gettempdir())
     panels = []
     if figure.plot_grid_every > 0:
-        pts_per_unit = get_pts_per_unit(figure.size.units)
+        pts_per_unit = get_pts_per_unit(figure.figure_size.units)
         grid_every = figure.plot_grid_every * pts_per_unit
         panels.append(sc.Grid(grid_every, grid_every, size=0))
 
@@ -172,11 +187,11 @@ def composite(figure: FigureSpec, delete_png=False):
 
         panel_elements = []
 
-        assert isinstance(subplot.figure, (plt.Figure, SVG))
-        figure_offset = location_to_str(figure.size.units, subplot.figure_offset)
-        if isinstance(subplot.figure, plt.Figure):
+        assert isinstance(subplot.fig, (plt.Figure, SVG))
+        figure_offset = location_to_str(figure.figure_size.units, subplot.figure_offset)
+        if isinstance(subplot.fig, plt.Figure):
             fn = tempdir / f"{name}.svg"
-            subplot.figure.savefig(fn, transparent=True)
+            subplot.fig.savefig(fn, transparent=True)
             """
             Rescale required due to matplotlib saving SVG files with correct 'size',
             but with wrong scale. To see this, open the SVG in Inkscape, and change its 
@@ -200,15 +215,15 @@ def composite(figure: FigureSpec, delete_png=False):
                 svg.scale(subplot.scale)
             panel_elements.append(svg.move(*figure_offset))
         else:
-            scale = subplot.scale or subplot.figure.scale
-            print(f"Scaling SVG {subplot.figure.file} by {scale}")
-            panel_elements.append(subplot.figure.svg.scale(scale).move(*figure_offset))
+            scale = subplot.scale or subplot.fig.scale
+            print(f"Scaling SVG {subplot.fig.file} by {scale}")
+            panel_elements.append(subplot.fig.svg.scale(scale).move(*figure_offset))
 
         if subplot.text is not None:
             panel_elements += [
                 sc.Text(
                     t.text,
-                    *location_to_str(figure.size.units, Location(t.x, t.y, subplot.location.units)),
+                    *location_to_str(figure.figure_size.units, Location(t.x, t.y, subplot.location.units)),
                     **t.kwargs
                 ).move(*figure_offset)
                 for t in subplot.text]
@@ -216,21 +231,21 @@ def composite(figure: FigureSpec, delete_png=False):
         if subplot.auto_label:
             label = sc.Text(
                 f"{chr(ord(first_char) + label_n)}",
-                *location_to_str(figure.size.units, Location(0, 0)),
+                *location_to_str(figure.figure_size.units, Location(0, 0)),
                 **auto_label
             )
             label_n += 1
             panel_elements.append(label)
 
         panel = sc.Panel(*panel_elements)
-        location = location_to_str(figure.size.units, subplot.location)
+        location = location_to_str(figure.figure_size.units, subplot.location)
         panels.append(panel.move(*location))
 
     def dim2str(width_height: Union[float, int], units: Units):
         return f"{width_height:.2f}in" if units == Units.inch else f"{width_height:.2f}{units.name}"
 
-    sc.Figure(dim2str(figure.size.width, figure.size.units),
-              dim2str(figure.size.height, figure.size.units),
+    sc.Figure(dim2str(figure.figure_size.width, figure.figure_size.units),
+              dim2str(figure.figure_size.height, figure.figure_size.units),
               *panels).save(figure.svg_path)
 
     if figure.generate_image != ImageType.none:
