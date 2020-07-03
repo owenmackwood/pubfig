@@ -96,14 +96,14 @@ class Subplot:
             location: Location,
             text: Optional[Union[Text, Tuple[Text, ...]]] = None,
             auto_label: bool = True,
-            label_location: Location = Location(0, 0),
+            figure_offset: Location = Location(0, 0),
             scale: Optional[float] = None,
     ):
         self.figure: Union[plt.Figure, SVG] = figure
         self.location: Location = location
         self.text: Optional[Tuple[Text, ...]] = text if isinstance(text, tuple) or text is None else (text,)
         self.auto_label: bool = auto_label
-        self.label_location: Location = label_location
+        self.figure_offset: Location = figure_offset
         self.scale: float = scale
 
 
@@ -115,7 +115,7 @@ class SubplotFig(Subplot):
             text: Optional[Union[Text, Tuple[Text, ...]]] = None,
             gridspec_kwargs: Optional[Dict[str, Any]] = None,
             auto_label: bool = True,
-            label_location: Location = Location(0, 0),
+            figure_offset: Location = Location(0, 0),
     ):
         gs_kwargs = gridspec_kwargs or dict()
         gs_kwargs.setdefault("nrows", 1)
@@ -124,7 +124,7 @@ class SubplotFig(Subplot):
         figure: plt.Figure = plt.figure(figsize=figure_size_in_inches(subplot_size))
         self.gridspec: GridSpec = figure.add_gridspec(**gs_kwargs)
 
-        super().__init__(figure, location, text, auto_label, label_location)
+        super().__init__(figure, location, text, auto_label, figure_offset)
 
 
 class AutoLabelOptions(NamedTuple):
@@ -173,7 +173,7 @@ def composite(figure: FigureSpec, delete_png=False):
         panel_elements = []
 
         assert isinstance(subplot.figure, (plt.Figure, SVG))
-
+        figure_offset = location_to_str(figure.size.units, subplot.figure_offset)
         if isinstance(subplot.figure, plt.Figure):
             fn = tempdir / f"{name}.svg"
             subplot.figure.savefig(fn, transparent=True)
@@ -198,11 +198,11 @@ def composite(figure: FigureSpec, delete_png=False):
                 svg.scale(scaling_magic)  # Default scaling as per block comment above
             else:  # Custom scaling per user request
                 svg.scale(subplot.scale)
-            panel_elements.append(svg)
+            panel_elements.append(svg.move(*figure_offset))
         else:
             scale = subplot.scale or subplot.figure.scale
             print(f"Scaling SVG {subplot.figure.file} by {scale}")
-            panel_elements.append(subplot.figure.svg.scale(scale))
+            panel_elements.append(subplot.figure.svg.scale(scale).move(*figure_offset))
 
         if subplot.text is not None:
             panel_elements += [
@@ -210,13 +210,13 @@ def composite(figure: FigureSpec, delete_png=False):
                     t.text,
                     *location_to_str(figure.size.units, Location(t.x, t.y, subplot.location.units)),
                     **t.kwargs
-                )
+                ).move(*figure_offset)
                 for t in subplot.text]
 
         if subplot.auto_label:
             label = sc.Text(
                 f"{chr(ord(first_char) + label_n)}",
-                *location_to_str(figure.size.units, subplot.label_location),
+                *location_to_str(figure.size.units, Location(0, 0)),
                 **auto_label
             )
             label_n += 1

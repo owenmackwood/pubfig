@@ -6,32 +6,32 @@ from pubfig import composite, spines_frames
 
 
 def example():
-    units = Units.cm
+    units = Units.inch
     class Figure1(FigureSpec):
         size = ElemSize(7.5, 9.0, units)
         svg_path = Path(tempfile.gettempdir()) / "figure_1.svg"
-        plot_grid_every = 0
+        plot_grid_every = 1
         generate_image = ImageType.tiff
         image_dpi = 300
 
         class Subplots(NamedTuple):
             schematic: Subplot \
                 = Subplot(SVG(get_schematic_path()),
-                          Location(.75, 1),
+                          Location(.25, .5),
                           auto_label=True,
-                          label_location=Location(-.5, -.5),
-                          text=Text("This is a schematic", -.3, -.3, size=10, weight="bold", font="serif"),)
+                          figure_offset=Location(.5, .25),
+                          text=Text("This is a schematic", 0, -.2, size=10, weight="bold", font="serif"), )
 
             noise_image: SubplotFig \
                 = SubplotFig(ElemSize(3.0, 3.0, units),
-                             Location(4.25, 1),
-                             label_location=Location(0, -.5),
+                             Location(4.25, .5),
+                             figure_offset=Location(.2, .25),
                              gridspec_kwargs=dict(bottom=0, left=0, top=1, right=1))
 
             time_series: SubplotFig \
                 = SubplotFig(ElemSize(6.0, 4.0, units),
-                             Location(.75, 4.5),
-                             label_location=Location(-.5, 0),
+                             Location(.25, 4.5),
+                             figure_offset=Location(.5, 0),
                              gridspec_kwargs=dict(nrows=2, ncols=2, wspace=1., hspace=1))
 
         subplots = Subplots()
