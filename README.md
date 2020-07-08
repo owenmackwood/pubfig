@@ -44,7 +44,7 @@ units = Units.cm
 
 class Figure1_Panels(PanelsSpec):
     schematic: Panel = Panel(
-            VectorImage("./schematic.svg"),
+            VectorImage("./images/schematic.svg"),
             Location(.25, .5),
         )
     noise_image: PanelFig = PanelFig(
