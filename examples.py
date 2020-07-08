@@ -15,7 +15,7 @@ class Figure1(FigureSpec):
     class Panels(PanelsSpec):
 
         schematic: Panel = Panel(
-            VectorImage("./images/schematic.pdf"),  # Loaded images use the size specified in the SVG file.
+            VectorImage("./images/schematic.svg"),  # Loaded images use the size specified in the SVG file.
             # RasterImage("./images/schematic.png", ElemSize(31, 30, Units.mm)),  # Can also load raster images
             Location(.25, .5),  # Location of the upper left of the panel (and label if not disabled)
             content_offset=Location(.5, .5),  # How far to shift this SVG relative to the panel location
