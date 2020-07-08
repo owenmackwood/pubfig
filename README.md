@@ -8,12 +8,11 @@ In some respects, this module doesn't do anything that can't already be done wit
 So why does it exist? While `svgutils` is a helpful package, and enables you to programmatically create complete publication-quality figures, it has some rough edges.
 These include its apparent inability to correctly handle units in a variety of scenarios, and the fact that when loading SVGs it throws away information essential for compositing the final figure correctly.
 
-So why `pubfig`? It smooths out those rough edges, permitting you exploit the capabilities of `svgutils`, while not having to worry about units, or the peculiarities of how it deals with SVG files.
-`pubfig` also features the ability to specify an entire publication-ready figure in a single location, and automates away all of the details of compositing with `svgutils`.
+So why `pubfig`? It smooths out those rough edges, permitting you exploit the capabilities of `svgutils`, while not having to worry about units, or the peculiarities of how it deals with SVG files. `pubfig` also features the ability to specify an entire publication-ready figure in a single location, and automates away all of the details of compositing with `svgutils`.
 
 Generating elaborate multipanel figures is already possible in Matplotlib (via nested `GridSpec` objects), though it can require substantial effort to get the subplot layout just right. Another frustrating issue is that Matplotlib automates certain aspects of layout and alignment, and can necessitate very careful massaging to get things where you want them. This is precisely where `pubfig` comes in: For aspects of the layout that you want automated (e.g. an N x M grid of subplots), `pubfig` lets Matplotlib handle it. For other aspects where you want precise control over the location of a figure element, `pubfig` allows you to exactly specify it and it will **always** appear in that location, and its appearance will never be affected by other figure elements.
 
-One final nicety is that it can also automatically output high-DPI raster images in either PNG (requires Inkscape) or TIFF formats  (requires Inkscape and ImageMagick).
+Additional highlights include the ability to [memoize](https://en.wikipedia.org/wiki/Memoization) plots to disk. This makes it possible to skip processing and plotting the underlying data, potentially offering significant speedups when regenerating a figure (something that tends to happen many times when tweaking the final layout). Finally, `pubfig` can also automatically output high-DPI raster images in either PNG (requires Inkscape) or TIFF formats  (requires Inkscape and ImageMagick).
 
 ## Requirements
 
@@ -102,7 +101,7 @@ Finally we can put all the pieces together to plot and composite your figure. Th
 ```python
 from pubfig import compositor
 
-@compositor(Figure1)
+@compositor(Figure1, memoize_panels=True, recompute_panels=False)
 def create_fig1(figure: Figure1):
     """A function that does the actual plotting of data (note the decorator!)"""
     plot_noise_image(figure.panels.noise_image)
@@ -117,8 +116,9 @@ There are many more features provided by `pubfig`. You can learn more about them
 ```
 >>> import pubfig as pf
 >>> pf?  # Prints the main docstring of the module
->>> pf.FigureSpec?  # The docstring for the FigureSpec class  
->>> pf.Panel?  # The docstring for the Panel class
+>>> pf.FigureSpec?  # The docstring for the FigureSpec class, etc.
+>>> pf.Panel?
+>>> pf.compositor? 
 ```
 
 ... and so on.

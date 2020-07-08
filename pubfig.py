@@ -172,7 +172,7 @@ class SVG:
     def __init__(self, file: Union[Path, str]):
 
         from svgutils.transform import fromfile
-        self.file = file
+        self.file: Path = Path(file)
         svg = fromfile(f"{file!s}")
 
         doc_width, w_unit = self.get_width_height(svg, "width")
@@ -209,15 +209,15 @@ class SVG:
     def get_svg_scale(self, svg: SVGFigure) -> float:
         import re
 
+        scale = 1.
         xform: str = svg.root.get("transform")
-        print(f"{self.file} root transform: {xform}")
-        g = re.match(r".+?scale\(([-+]?\d*\.\d+|\d+)\)", xform or "")
-        if g:
-            scale = float(g.group(1))
-            if abs(scale - 1.) > 1e-3:
-                print(f"Found global scaling factor in {self.file} of {scale}")
-        else:
-            scale = 1.
+        if xform is not None:
+            print(f"{self.file} root transform: {xform}")
+            g = re.match(r".+?scale\(([-+]?\d*\.\d+|\d+)\)", xform)
+            if g:
+                scale = float(g.group(1))
+                if abs(scale - 1.) > 1e-3:
+                    print(f"Found global scaling factor in {self.file.absolute()} of {scale}")
 
         return scale
 
@@ -393,7 +393,10 @@ PlottingFunctionDecorator = Callable[[PlottingFunction], Callable[..., Any]]
 
 
 def compositor(
-        figure_spec: Type[FigureSpec], delete_png: bool = True
+        figure_spec: Type[FigureSpec],
+        memoize_panels: bool = False,
+        recompute_panels: bool = True,
+        delete_png: bool = True,
 ) -> PlottingFunctionDecorator:
     """
     Returns a decorator for functions that operate on user-defined FigureSpec objects.
@@ -415,6 +418,15 @@ def compositor(
     ----------
     figure_spec : Type[FigureSpec]
         A reference to the user defined subclass of FigureSpec.
+    memoize_panels : bool
+        If true, the contents of each PanelFig are saved to disk, and in the future
+        will be loaded from there instead of calling the decorated plotting
+        function (until `recompute_panels` is true, the memoized data is deleted,
+        or this argument is set to false).
+    recompute_panels : bool
+        Overrides the `memoize_panels` argument, causing the decorated plotting function
+        to be called. If `memoize_panels` is true, the memoized plot data is overwritten
+        with the new plot data.
     delete_png : bool
         A boolean indicating whether to delete the generated PNG file. Can be useful when
         the desired output is a TIFF (the PNG is a necessary intermediate file).
@@ -431,8 +443,14 @@ def compositor(
 
         def wrapped_fn(*args, **kwargs) -> Any:
             fig_spec = figure_spec()
-            result = fn(fig_spec, *args, **kwargs)
-            composite(fig_spec, delete_png)
+            compute_panels = not memoize_panels or recompute_panels or _memoized_panels_missing(fig_spec)
+            if compute_panels:
+                print("Computing new panel contents.")
+                result = fn(fig_spec, *args, **kwargs)
+            else:
+                print("Loading all panel contents from disk.")
+                result = None
+            composite(fig_spec, memoize_panels, compute_panels, delete_png)
             return result
 
         return wrapped_fn
@@ -440,7 +458,12 @@ def compositor(
     return compositor_decorator
 
 
-def composite(fig_spec: FigureSpec, delete_png: bool = True) -> None:
+def composite(
+        fig_spec: FigureSpec,
+        memoize_panels: bool = False,
+        recompute_panels: bool = True,
+        delete_png: bool = True,
+) -> None:
     """
     Function that composites a figure from a FigureSpec.
 
@@ -470,7 +493,13 @@ def composite(fig_spec: FigureSpec, delete_png: bool = True) -> None:
     if not svg_path.parent.exists():
         svg_path.parent.mkdir(parents=True, exist_ok=True)
 
-    tempdir = Path(tempfile.gettempdir())
+    if memoize_panels:
+        panels_path = svg_path.parent / ".panels"
+        if not panels_path.exists():
+            panels_path.mkdir()
+    else:
+        panels_path = Path(tempfile.gettempdir())
+
     panels = []
     if fig_spec.plot_grid_every > 0:
         panels.append(_generate_grid(fig_spec.figure_size, fig_spec.plot_grid_every, font_size=8))
@@ -489,24 +518,12 @@ def composite(fig_spec: FigureSpec, delete_png: bool = True) -> None:
         content_offset = _location_to_str(
             panel.location.units or fig_spec.figure_size.units, panel.content_offset
         )
-        if isinstance(panel.fig, plt.Figure):
-            fn = tempdir / f"{name}.svg"
-            panel.fig.savefig(fn, transparent=True)
-            svg = sc.SVG(fn)
-            if panel.scale is None:
-                """
-                Default scaling to recover correct size in the final image.
-                This is necessary because regardless of the units to define the output svgutils.Figure,
-                svgutils seems to treat all SVG elements as being defined in `px`
-                """
-                svg.scale(_c.px_per_pt)
-            else:
-                # Custom scaling per user request
-                svg.scale(panel.scale)
+        if isinstance(panel, PanelFig):
+            svg = _get_panel_content(panels_path, panel, name, memoize_panels, recompute_panels)
             panel_elements.append(svg.move(*content_offset))
         else:
             scale = panel.scale or panel.fig.scale
-            print(f"Scaling SVG {panel.fig.file} by {scale}")
+            print(f"Scaling SVG {panel.fig.file.absolute()} by {scale:.3f}")
             panel_elements.append(panel.fig.svg.scale(scale).move(*content_offset))
 
         if panel.text is not None:
@@ -562,6 +579,70 @@ def composite(fig_spec: FigureSpec, delete_png: bool = True) -> None:
                 _run(f"rm {image_name}")
             image_name = tiff_name
         _run(f"eog {image_name}")
+
+
+def _get_panel_content(
+        panels_path: Path, panel: PanelFig, panel_name: str, memoize_panels: bool, recompute_panels: bool
+) -> sc.SVG:
+    """
+    Obtains the panel content, either from the plt.Figure, or from
+    the disk, as appropriate.
+
+    Parameters
+    ----------
+    panels_path : Path
+    panel : PanelFig
+    panel_name : str
+    memoize_panels : bool
+    recompute_panels : bool
+
+    Returns
+    -------
+        sc.SVG
+    """
+    fn = panels_path / f"{panel_name}.svg"
+
+    if recompute_panels:
+        print(f"Saving {fn}")
+        panel.fig.savefig(fn, transparent=True)
+
+    svg = sc.SVG(f"{fn!s}")
+
+    if not memoize_panels:
+        print(f"Removing {fn}")
+        fn.unlink()
+        assert not fn.exists()
+
+    if panel.scale is None:
+        """
+        Default scaling to recover correct size in the final image.
+        This is necessary because regardless of the units to define the output svgutils.Figure,
+        svgutils seems to treat all SVG elements as being defined in `px`
+        """
+        svg.scale(_c.px_per_pt)
+    else:
+        # Custom scaling per user request
+        svg.scale(panel.scale)
+    return svg
+
+
+def _memoized_panels_missing(fig_spec: FigureSpec) -> bool:
+    """
+    Check if any panel Figure files are missing on disk.
+
+    Parameters
+    ----------
+    fig_spec : FigureSpec
+
+    Returns
+    -------
+        bool
+    """
+    panels_path = fig_spec.output_file.parent / ".panels"
+    return not all((panels_path / name).with_suffix(".svg").exists()
+                        for name in fig_spec.panels._fields
+                        if isinstance(getattr(fig_spec.panels, name), PanelFig)
+                   )
 
 
 def _location_to_str(default_units: Units, loc: Location) -> Tuple[str, ...]:

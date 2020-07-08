@@ -43,12 +43,12 @@ class Figure1(FigureSpec):
     image_dpi = 300  # Only used if `generate_image` is not `none`
 
 
-@compositor(Figure1)
+@compositor(Figure1, memoize_panels=True, recompute_panels=False)
 def create_fig1(figure: Figure1):
     """A function that does the actual plotting of data (note the decorator!)"""
     plot_noise_image(figure.panels.noise_image)
     plot_time_series(figure.panels.time_series)
-    # No need to access figure.panels.schematic since it is loaded from disk.
+    # No need to access figure.panels.schematic since it is always loaded from disk.
 
 
 def plot_noise_image(panel: PanelFig):
