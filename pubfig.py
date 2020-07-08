@@ -159,9 +159,9 @@ class Text:
         )
 
 
-class SVG:
+class VectorImage:
     """
-    A class that attempts to compute the correct scale factor for the SVG file,
+    A class that attempts to compute the correct scale factor for SVG/EPS/PDF files,
     since svgutils throws away the necessary information when its SVG class
     is used to load the file directly.
 
@@ -170,10 +170,14 @@ class SVG:
     """
 
     def __init__(self, file: Union[Path, str]):
-
         from svgutils.transform import fromfile
+
         self.file: Path = Path(file)
-        svg = fromfile(f"{file!s}")
+
+        if self.file.suffix in (".eps", ".pdf"):
+            self._convert_to_svg()
+
+        svg = fromfile(f"{self.file!s}")
 
         doc_width, w_unit = self.get_width_height(svg, "width")
         doc_height, h_unit = self.get_width_height(svg, "height")
@@ -191,6 +195,18 @@ class SVG:
         self.scale = xform_scale * w_unit.to_px(1) / user_units_scale
         self.svg = sc.SVG()
         self.svg.root = svg.getroot().root
+
+    def _convert_to_svg(self):
+        import tempfile
+
+        eps_path = self.file
+        file_name = Path(tempfile.gettempdir()) / eps_path.name[:-4]
+        temp_svg = file_name.with_suffix(".svg")
+
+        print(f"Converting {eps_path} to SVG for compositing.")
+        _run(f"inkscape --without-gui --export-plain-svg='{temp_svg}' {eps_path}")
+
+        self.file = temp_svg
 
     @staticmethod
     def get_width_height(svg: SVGFigure, width_or_height) -> Tuple[float, Units]:
@@ -222,14 +238,19 @@ class SVG:
         return scale
 
 
+class RasterImage:
+    def __init__(self, file: Union[Path, str], img_size: ElemSize):
+        self.file: Path = Path(file)
+        self.img_size: ElemSize = img_size
+
+
 class Panel:
     """
     Figures are comprised of Panel objects. Each panel contains:
 
-    fig : plt.Figure or SVG
+    fig : plt.Figure or VectorImage or RasterImage
         A reference to the content to be displayed in the panel. This can be
-        either a Matplotlib Figure, or an image loaded from disk (only
-        SVG images are currently supported).
+        either a Matplotlib Figure, or an image loaded from disk.
 
     location : Location
         The location in the figure where to place the upper-left corner of the panel.
@@ -257,14 +278,14 @@ class Panel:
     """
     def __init__(
             self,
-            figure: Union[plt.Figure, SVG],
+            figure: Union[plt.Figure, VectorImage, RasterImage],
             location: Location,
             text: Optional[Union[Text, Tuple[Text, ...]]] = None,
             auto_label: bool = True,
             content_offset: Location = Location(0, 0),
             scale: Optional[float] = None,
     ):
-        self.fig: Union[plt.Figure, SVG] = figure
+        self.fig: Union[plt.Figure, VectorImage, RasterImage] = figure
         self.location: Location = location
         self.text: Optional[Tuple[Text, ...]] = text if isinstance(text, tuple) or text is None else (text,)
         self.auto_label: bool = auto_label
@@ -516,17 +537,28 @@ def composite(
 
         panel_elements = []
 
-        assert isinstance(panel.fig, (plt.Figure, SVG))
+        assert isinstance(panel.fig, (plt.Figure, VectorImage, RasterImage))
         content_offset = _location_to_str(
             panel.location.units or fig_spec.figure_size.units, panel.content_offset
         )
         if isinstance(panel, PanelFig):
             svg = _get_panel_content(panels_path, panel, name, memoize_panels, recompute_panels)
             panel_elements.append(svg.move(*content_offset))
-        else:
+        elif isinstance(panel.fig, VectorImage):
             scale = panel.scale or panel.fig.scale
-            print(f"Scaling SVG {panel.fig.file.absolute()} by {scale:.3f}")
+            print(f"Scaling vector image {panel.fig.file.absolute()} by {scale:.3f}")
             panel_elements.append(panel.fig.svg.scale(scale).move(*content_offset))
+        elif isinstance(panel.fig, RasterImage):
+            img_size = panel.fig.img_size
+            scale = panel.scale or 1.
+            img = sc.Image(
+                img_size.units.to_px(img_size.width),
+                img_size.units.to_px(img_size.height),
+                f"{panel.fig.file}",
+            )
+            panel_elements.append(img.scale(scale).move(*content_offset))
+        else:
+            raise TypeError(f"Unknown type of panel content {type(panel.fig)}")
 
         if panel.text is not None:
             panel_elements += [
@@ -570,7 +602,7 @@ def composite(
           rm $BN.png
         done
         """
-        basename = f"{svg_path}".rstrip(".svg")
+        basename = f"{svg_path}"[:-4]
         image_name = f"{basename}.png"
         _run(f"inkscape --without-gui --export-png='{image_name}' --export-dpi {fig_spec.image_dpi} {svg_path}")
         if fig_spec.generate_image == ImageType.tiff:

@@ -5,7 +5,7 @@ See the README.md or the documentation in the pubfig module for more information
 """
 from pathlib import Path
 import tempfile
-from pubfig import FigureSpec, PanelsSpec, ElemSize, Units, ImageType, Location, SVG, Panel, PanelFig, Text
+from pubfig import FigureSpec, PanelsSpec, ElemSize, Units, ImageType, Location, VectorImage, Panel, PanelFig, Text
 from pubfig import compositor, spines_frames
 
 units = Units.cm  # Try changing this to `Units.inch`
@@ -15,14 +15,17 @@ class Figure1(FigureSpec):
     class Panels(PanelsSpec):
 
         schematic: Panel = Panel(
-            SVG(Path("./schematic.svg")),  # Loaded images use the size specified in the SVG file.
+            VectorImage("./schematic.svg"),  # Loaded images use the size specified in the SVG file.
+            # RasterImage("./schematic.png", ElemSize(31, 30, Units.mm)),  # Can also load raster images
             Location(.25, .5),  # Location of the upper left of the panel (and label if not disabled)
             content_offset=Location(.5, .5),  # How far to shift this SVG relative to the panel location
-            text=Text("This is a schematic", .1, -.2, size=10, weight="bold", font="serif")  # Can also be a tuple of Text
+            text=Text(  # Can also be a tuple of multiple Text objects
+                "This is a schematic", .1, -.2, size=10, weight="bold", font="serif"
+            ),
         )
 
         noise_image: PanelFig = PanelFig(
-            ElemSize(2., 2., units),  # Physical dimensions of the figure
+            ElemSize(2., 2., units),  # Physical dimensions of the plt.Figure
             Location(4.5, .5),
             content_offset=Location(.5, .5),
             gridspec_kwargs=dict(left=0, bottom=0, right=1, top=1)  # Passed to fig.add_gridspec()
