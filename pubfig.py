@@ -42,6 +42,7 @@ from svgutils.transform import SVGFigure
 from matplotlib.gridspec import GridSpec
 
 Length = Union[float, int]
+PanelsSpec = NamedTuple
 
 
 class Units(Enum):
@@ -362,7 +363,7 @@ class FigureSpec(SimpleNamespace):
         Determines the appearance of automated panel labels. Whether to
         automatically label panels is set on individual Panel objects.
     """
-    class Panels(NamedTuple):
+    class Panels(PanelsSpec):
         """
         Just a placeholder for the user definition of Panels,
         so that we can specify that FigureSpec has type

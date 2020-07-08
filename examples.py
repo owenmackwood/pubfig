@@ -3,17 +3,16 @@ A simple example of how to use pubfig.
 
 See the README.md or the documentation in the pubfig module for more information.
 """
-from typing import NamedTuple
 from pathlib import Path
 import tempfile
-from pubfig import FigureSpec, ElemSize, Units, ImageType, Location, SVG, Panel, PanelFig, Text
+from pubfig import FigureSpec, PanelsSpec, ElemSize, Units, ImageType, Location, SVG, Panel, PanelFig, Text
 from pubfig import compositor, spines_frames
 
-units = Units.cm
+units = Units.cm  # Try changing this to `Units.inch`
 
 
 class Figure1(FigureSpec):
-    class Panels(NamedTuple):
+    class Panels(PanelsSpec):
 
         schematic: Panel = Panel(
             SVG(Path("./schematic.svg")),  # Loaded images use the size specified in the SVG file.
@@ -39,7 +38,7 @@ class Figure1(FigureSpec):
     panels = Panels()
     figure_size = ElemSize(7.5, 9.0, units)
     output_file = Path(tempfile.gettempdir()) / "figure_1.svg"  # SVG extension isn't strictly necessary
-    plot_grid_every = 1.  # Set this to zero to turn off the grid
+    plot_grid_every = 1  # Set this to zero to turn off the grid
     generate_image = ImageType.tiff  # Could also be `png` or `none`
     image_dpi = 300  # Only used if `generate_image` is not `none`
 

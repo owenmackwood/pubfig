@@ -27,24 +27,23 @@ To specify the contents and layout of a figure using `pubfig` one merely defines
  
  1) `output_file`: The path and filename for the output SVG file (this can be a `pathlib.Path` or `str`).
  2) `figure_size`: An `ElemSize` object that specifies the `width`, `height`, and `units` of the figure.
- 3) `panels`: A `NamedTuple` where each entry defines an element to be included in the figure. Each element can be either a Matplotlib figure (indicated by using the `PanelFig` class), or an image e.g. a diagram or schematic (by using the `Panel` class).
+ 3) `panels`: A `PanelsSpec` where each entry defines an element to be included in the figure. Each element can be either a Matplotlib figure (indicated by using the `PanelFig` class), or an image e.g. a diagram or schematic (by using the `Panel` class).
  
 There are other useful attributes of the `FigureSpec`, but for simplicity we'll ignore them for now.
 
-As mentioned, the `panels` attribute of `FigureSpec` must be a `NamedTuple` with entries that are either a `PanelFig` or `Panel`. The `PanelFig` class is used to specify a Matplotlib `Figure`, and so the constructor requires an `ElemSize` object that defines the `Figure` size (`width`, `height`, `units`). It also accepts a `gridspec_kwargs` dictionary, which enables you to define the number of rows and columns in the Matplotlib `GridSpec` that will be constructed by `pubfig` (along with any other argument accepted by the `Figure.add_gridspec` function). If `gridspec_kwargs` is not provided, then a `GridSpec` of one row and one column is constructed.
+As mentioned, the `panels` attribute of `FigureSpec` must be a `PanelsSpec` with entries that are either a `PanelFig` or `Panel`. The `PanelFig` class is used to specify a Matplotlib `Figure`, and so the constructor requires an `ElemSize` object that defines the `Figure` size (`width`, `height`, `units`). It also accepts a `gridspec_kwargs` dictionary, which enables you to define the number of rows and columns in the Matplotlib `GridSpec` that will be constructed by `pubfig` (along with any other argument accepted by the `Figure.add_gridspec` function). If `gridspec_kwargs` is not provided, then a `GridSpec` of one row and one column is constructed.
 
 The `Panel` class is used to specify an image that should be included in the figure (currently only SVG files are supported). To include an SVG image, make a `pubfig.SVG` object by passing the file's path to its constructor. The image will be composited into the figure at the correct size (i.e. the absolute dimensions of the image included in the final figure will be the same as the absolute dimensions defined in the SVG file). If you want to rescale the image, pass a `scale` value to the `Panel` constructor.
 
 Here is an example of a figure with three panels, the first is an SVG loaded from the current directory (the `schematic`), the second is a Matplotlib `Figure` with a single plot (`noise_image`), and the third is also a `Figure` (called `time_series`), but this time with two rows and two columns. 
 
 ```python
-from pubfig import Units, FigureSpec, ElemSize, Panel, PanelFig, SVG, Location
-from typing import NamedTuple
+from pubfig import Units, FigureSpec, PanelsSpec, ElemSize, Panel, PanelFig, SVG, Location
 from pathlib import Path
 
 units = Units.cm
 
-class Figure1_Panels(NamedTuple):
+class Figure1_Panels(PanelsSpec):
     schematic: Panel = Panel(
             SVG(Path("./schematic.svg")),
             Location(.25, .5),
