@@ -180,7 +180,7 @@ class SVG:
         assert w_unit == h_unit, "Units of SVG drawing dimensions must match!"
 
         min_x, min_y, vb_width, vb_height = self.get_view_box(svg)
-        assert abs(min_x) < 1e-3 and abs(min_y < 1e-3), \
+        assert abs(min_x) < 1e-3 and abs(min_y) < 1e-3, \
             "The min-x/y of the SVG viewBox is non-zero, comment out this line to try loading it anyway"
 
         user_units_scale = vb_height / doc_height
@@ -245,8 +245,8 @@ class Panel:
         The label will always be located at `location`.
 
     content_offset : Location
-        Where to position the content referred to by the fig attribute, relative
-        to the upper-left corner of the panel. If no units are set in the Location
+        Where to position the content referred to by the `fig` attribute, relative
+        to the upper-left corner of the panel. If no units are set in this Location
         object, then units are taken from `location`. If `location` has no units
         then the FigureSpec.fig_size units are used.
 
@@ -281,7 +281,7 @@ class PanelFig(Panel):
 
     plt_fig_size : ElemSize
         The size of the Matplotlib Figure, i.e. the `figsize` for the constructor.
-        Units are used for its construction, but never again.
+        The units of this ElemSize are used for its construction, but never again.
 
     gridspec_kwargs : Dict[str, Any], optional
         Any valid argument for Figure.add_gridspec(), including `nrows` and `ncols`.
@@ -470,6 +470,8 @@ def composite(
     Parameters
     ----------
     fig_spec : FigureSpec
+    memoize_panels : bool
+    recompute_panels : bool
     delete_png :  bool
         See the pubfig.compositor decorator for a description of the parameters.
 
@@ -585,7 +587,7 @@ def _get_panel_content(
         panels_path: Path, panel: PanelFig, panel_name: str, memoize_panels: bool, recompute_panels: bool
 ) -> sc.SVG:
     """
-    Obtains the panel content, either from the plt.Figure, or from
+    Obtains the panel content, either from the plt.Figure or from
     the disk, as appropriate.
 
     Parameters
@@ -640,8 +642,7 @@ def _memoized_panels_missing(fig_spec: FigureSpec) -> bool:
     """
     panels_path = fig_spec.output_file.parent / ".panels"
     return not all((panels_path / name).with_suffix(".svg").exists()
-                        for name in fig_spec.panels._fields
-                        if isinstance(getattr(fig_spec.panels, name), PanelFig)
+                   for name in fig_spec.panels._fields if isinstance(getattr(fig_spec.panels, name), PanelFig)
                    )
 
 
