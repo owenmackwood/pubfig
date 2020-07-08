@@ -245,7 +245,9 @@ class Panel:
 
     content_offset : Location
         Where to position the content referred to by the fig attribute, relative
-        to the upper-left corner of the panel.
+        to the upper-left corner of the panel. If no units are set in the Location
+        object, then units are taken from `location`. If `location` has no units
+        then the FigureSpec.fig_size units are used.
 
     scale : float, optional
         How much to scale the content. This is generally unnecessary, though
@@ -276,18 +278,16 @@ class PanelFig(Panel):
     provided arguments. If `nrows` or `ncols` are not provided, they are set to 1.
     For an explanation of the remaining PanelFig attributes, see the class Panel.
 
-    fig_size : ElemSize
+    plt_fig_size : ElemSize
         The size of the Matplotlib Figure, i.e. the `figsize` for the constructor.
-        Units are used for its construction, but never again, so if `content_offset`
-        doesn't specify units, its `x` and `y` values are interpreted
-        as having the same units as FigureSpec.figure_size.
+        Units are used for its construction, but never again.
 
     gridspec_kwargs : Dict[str, Any], optional
         Any valid argument for Figure.add_gridspec(), including `nrows` and `ncols`.
     """
     def __init__(
             self,
-            fig_size: ElemSize,
+            plt_fig_size: ElemSize,
             location: Location,
             text: Optional[Union[Text, Tuple[Text, ...]]] = None,
             auto_label: bool = True,
@@ -299,7 +299,7 @@ class PanelFig(Panel):
         gs_kwargs.setdefault("ncols", 1)
 
         figure: plt.Figure = plt.figure(
-            figsize=tuple(fig_size.units.to_inches(wh) for wh in (fig_size.width, fig_size.height))
+            figsize=tuple(plt_fig_size.units.to_inches(wh) for wh in (plt_fig_size.width, plt_fig_size.height))
         )
         self.gridspec: GridSpec = figure.add_gridspec(**gs_kwargs)
 
@@ -485,7 +485,9 @@ def composite(fig_spec: FigureSpec, delete_png: bool = True) -> None:
         panel_elements = []
 
         assert isinstance(panel.fig, (plt.Figure, SVG))
-        content_offset = _location_to_str(fig_spec.figure_size.units, panel.content_offset)
+        content_offset = _location_to_str(
+            panel.location.units or fig_spec.figure_size.units, panel.content_offset
+        )
         if isinstance(panel.fig, plt.Figure):
             fn = tempdir / f"{name}.svg"
             panel.fig.savefig(fn, transparent=True)

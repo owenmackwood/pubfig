@@ -5,7 +5,7 @@ A simple module for creating publication-quality figures, and recreating them at
 ## Why pubfig?
 
 In some respects, this module doesn't do anything that can't already be done with [Matplotlib](https://matplotlib.org/) and [svgutils](https://svgutils.readthedocs.io).
-So does it exist? While `svgutils` is a helpful package, and enables you to programmatically create complete publication-ready figures, it has some rough edges.
+So why does it exist? While `svgutils` is a helpful package, and enables you to programmatically create complete publication-quality figures, it has some rough edges.
 These include its apparent inability to correctly handle units in a variety of scenarios, and the fact that when loading SVGs it throws away information essential for compositing the final figure correctly.
 
 So why `pubfig`? It smooths out those rough edges, permitting you exploit the capabilities of `svgutils`, while not having to worry about units, or the peculiarities of how it deals with SVG files.
@@ -23,7 +23,7 @@ One final nicety is that it can also automatically output high-DPI raster images
 
 ## Quick start guide
 
-To specify the contents and layout of a figure using `pubfig` one merely defines a class that inherits from `pubfig.FigureSpec` (a figure specification). Your `FigureSpec` class has a few attributes that you are required to provide. Specifically, at minimum, you must provide:
+To specify the contents and layout of a figure using `pubfig` one merely defines a class that inherits from `pubfig.FigureSpec` (a figure specification). Your `FigureSpec` class has a few attributes that you are required to provide. At minimum, you must provide:
  
  1) `output_file`: The path and filename for the output SVG file (this can be a `pathlib.Path` or `str`).
  2) `figure_size`: An `ElemSize` object that specifies the `width`, `height`, and `units` of the figure.
@@ -126,7 +126,7 @@ There are many more features provided by `pubfig`. You can learn more about them
 
 ## A note on units
 
-A important part of `pubfig` is how it handles units. In general, it is possible to specify most locations or sizes with their own units. That includes the `location` and `content_offset` attributes of `Panel` and `PanelFig`. If you do not specify units for those attributes, then they will be interpreted as having the same units as the `FigureSpec.fig_size` object. The `Text` location (`x`, `y`) has the same units as the `Panel.location`, and if no units were specified for that, then it takes the units of the `FigureSpec`.
+A important part of `pubfig` is how it handles units. In general, it is possible to specify most locations or sizes with their own units. That includes the `location` and `content_offset` attributes of `Panel` and `PanelFig`. If you do not specify units for `location`, then it will be interpreted as having the same units as the `FigureSpec.fig_size` object. If `content_offset` is unitless, it takes the units of the panel's `location`, and if that is not set, then the `FigureSpec.fig_size` units are used. `Text` locations (their `x` and `y` attributes) have the same units as the `Panel.location`, and if no units were specified for that, then they take the units of the `FigureSpec`.
 
-An important special case is the `fig_size` of `PanelFig`, for which its units are used when constructing the Matplotlib `Figure` object, but not at any other time. 
+An important special case is the `plt_fig_size` of `PanelFig`, for which its units are used when constructing the Matplotlib `Figure` object, but not for anything else. 
  
