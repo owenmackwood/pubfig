@@ -123,6 +123,8 @@ class Text:
     A class to define text objects, associated with a panel.
     The `x` and `y` arguments are relative to the panel location,
     and use the same units as the ElemSize that defines the panel.
+    The `angle` argument sets the rotation of the text (in degrees),
+    about the text `anchor` location.
 
     The following SVG ``<text>`` tag attributes can also be set:
 
@@ -135,7 +137,7 @@ class Text:
          number in the range 100-900, e.g. "900" (default value: "normal")
     letterspacing : int
         The "letter-spacing" attribute (default value: 0)
-    anchor : str
+    anchor : str : {"start", "middle", "end"}
         The "text-anchor" attribute (default value: "start")
     color : str
         The "fill" attribute (default value: "black")
@@ -144,16 +146,18 @@ class Text:
             self,
             text: str,
             x: Length, y: Length,
+            angle: float = 0,
             size: int = 8,
             font: str = "Verdana",
             weight: str = "normal",
             letterspacing: int = 0,
             anchor: str = "start",
-            color: str = "black"
+            color: str = "black",
     ):
         self.text: str = text
         self.x: Length = x
         self.y: Length = y
+        self.angle: float = angle
         self.kwargs: Dict[str, Any] = dict(
             size=size, font=font, weight=weight, letterspacing=letterspacing, anchor=anchor, color=color
         )
@@ -351,8 +355,10 @@ class AutoLabelOptions(NamedTuple):
         The first character in the sequence of panel labels.
         Suggested values are {'a', 'A', 'i', 'I'}. If set to 'i'
         or 'I', Roman numeral labels will be generated. The `x` and `y`
-        attributes of the Text object are ignored. Otherwise, see the
-        Text class for details of the configurable text attributes.
+        attributes of the Text object determine the location of all
+        automatic labels relative to the upper left corner of their
+        respective panels. Otherwise, see the Text class for details of
+        the configurable text attributes.
     label_generator : Generator yielding strings
         This can be used to produce arbitrary label sequences,
         and should be callable with a single argument (the `first_char`).
@@ -558,21 +564,29 @@ def composite(
             )
             panel_elements.append(img.scale(scale).move(*content_offset))
         else:
-            raise TypeError(f"Unknown type of panel content {type(panel.fig)}")
+            raise TypeError(f"Unknown type of panel content {type(panel.fig)} for panel {name}")
 
         if panel.text is not None:
-            panel_elements += [
+            panel_text = [
                 sc.Text(
                     t.text,
                     *_location_to_str(fig_spec.figure_size.units, Location(t.x, t.y, panel.location.units)),
                     **t.kwargs
-                ).move(*content_offset)
-                for t in panel.text]
+                ) for t in panel.text]
+
+            for t, pt in zip(panel_text, panel.text):
+                # Need separate loop because rotate doesn't return the Text Element
+                t.move(*content_offset).rotate(pt.angle)
+
+            panel_elements += panel_text
 
         if panel.auto_label:
             label = sc.Text(
                 next(label_generator),
-                *_location_to_str(fig_spec.figure_size.units, Location(0, 0)),
+                *_location_to_str(
+                    fig_spec.figure_size.units,
+                    Location(auto_label.first_char.x, auto_label.first_char.y)
+                ),
                 **auto_label.first_char.kwargs
             )
             panel_elements.append(label)
