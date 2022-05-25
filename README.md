@@ -19,6 +19,7 @@ Additional highlights include the ability to [memoize](https://en.wikipedia.org/
 * Python version >= 3.6
 * svgutils
 * Matplotlib
+* typing_extensions
 
 ## Quick start guide
 

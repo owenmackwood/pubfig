@@ -46,7 +46,7 @@ class Figure1(FigureSpec):
     image_dpi = 300  # Only used if `generate_image` is not `none`
 
 
-@compositor(Figure1, memoize_panels=True, recompute_panels=False)
+@compositor(Figure1, memoize_panels=True, recompute_panels=True)
 def create_fig1(figure: Figure1):
     """A function that does the actual plotting of data (note the decorator!)"""
     plot_noise_image(figure.panels.noise_image)
